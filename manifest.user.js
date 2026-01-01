@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeeker
 // @namespace    https://github.com/qt-kaneko/DeepSeeker
-// @version      1.0.4
+// @version      1.4.1
 // @description  Prevents deletion of filtered/censored responses on DeepSeek. This is purely visual change. FILTERED RESPONSES WILL PERSIST ONLY UNTIL THE PAGE IS RELOADED.
 // @author       Kaneko Qt
 // @license      GPL-3.0-or-later
@@ -26,7 +26,7 @@ class SSE
       .trimEnd()
       .split(`\n\n`)
       .map(event => event.split(`\n`))
-      .map(fields => fields.map(field => [...split(field, `: `, 2)]))
+      .map(fields => fields.map(field => field.split(/: (.*)/s, 2)))
       .map(fields => Object.fromEntries(fields));
     return events;
   }
@@ -44,24 +44,6 @@ class SSE
   }
 }
 
-/**
- * @param {string} text
- * @param {string} separator
- * @param {number} limit
- */
-function* split(text, separator, limit)
-{
-  let lastI = 0;
-  for (let separatorI = text.indexOf(separator), n = 1;
-           separatorI !== -1 && n < limit;
-           separatorI = text.indexOf(separator, separatorI + separator.length), n++)
-  {
-    yield text.slice(lastI, separatorI);
-    lastI = separatorI + separator.length;
-  }
-  yield text.slice(lastI);
-}
-
 const _endpoints = [
   `https://chat.deepseek.com/api/v0/chat/edit_message`,
   `https://chat.deepseek.com/api/v0/chat/completion`,
@@ -71,8 +53,9 @@ const _endpoints = [
 ];
 
 XMLHttpRequest = class extends XMLHttpRequest {
-  response;
-  responseText;
+  /** @type {any} */
+  response = null;
+  responseText = ``;
 
   constructor()
   { super();
@@ -94,6 +77,7 @@ XMLHttpRequest = class extends XMLHttpRequest {
     if (!this.getResponseHeader(`Content-Type`)?.includes(`text/event-stream`)) return;
 
     let response = this.responseText;
+    let changed = false;
 
     let events = SSE.parse(response);
     for (let event of events)
@@ -107,13 +91,21 @@ XMLHttpRequest = class extends XMLHttpRequest {
       if (contentFilter)
       {
         data.v = [{p: `ban_regenerate`, v: true}, {p: `status`, v: `FINISHED`}];
-        event.data = JSON.stringify(data);
+        changed = true;
 
         console.log(`[DeepSeeker] Get patched, idiot :P`);
       }
+
+      if (changed)
+      {
+        event.data = JSON.stringify(data);
+      }
     }
 
-    response = SSE.stringify(events);
+    if (changed)
+    {
+      response = SSE.stringify(events);
+    }
 
     this.response = response;
     this.responseText = response;
