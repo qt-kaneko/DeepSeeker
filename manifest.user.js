@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeeker
 // @namespace    https://github.com/qt-kaneko/DeepSeeker
-// @version      1.5.0
+// @version      1.6.0
 // @description  Prevents deletion of filtered/censored responses on DeepSeek. This is purely visual change. FILTERED RESPONSES WILL PERSIST ONLY UNTIL THE PAGE IS RELOADED.
 // @author       Kaneko Qt
 // @license      GPL-3.0-or-later
@@ -55,7 +55,7 @@ const _endpoints = [
 /** @param {any} value */
 function isContentFilter(value)
 {
-  if (value.o === `BATCH`)
+  if (Array.isArray(value.v))
   {
     return value.v.some(isContentFilter);
   }
@@ -91,12 +91,12 @@ XMLHttpRequest = class extends XMLHttpRequest {
     let changed = false;
 
     let events = SSE.parse(response);
+    // console.debug(`[DeepSeeker] Events:`, structuredClone(events));
     for (let event of events)
     {
       if (event.data === undefined) continue;
 
       let data = JSON.parse(event.data);
-      if (data.p !== `response`) continue;
 
       if (isContentFilter(data))
       {
